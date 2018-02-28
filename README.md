@@ -2,9 +2,9 @@
 Shell BigQuery importer
 
 
-# bqrunner creates bq table / runs multiple processes
+bqrunner creates bq table / runs multiple processes
 
-# bqimportrange does import
+bqimportrange does import
 
 usage example
 
