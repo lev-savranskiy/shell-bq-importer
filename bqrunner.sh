@@ -46,13 +46,13 @@ do
         # get filename from path
         FILE="${FILEPATH##*/}"
         echo "Importing ${FILE}"
-        sudo bash /home/ubuntu/bqimportone.sh ${FOLDER} ${FILE} ${DATASET} ${SCHEMA}
+        sudo bash /home/ubuntu/bqimportrange.sh ${FOLDER} ${FILE} ${DATASET} ${SCHEMA}
         i=$(($i + 1))
     fi
 done
 
 TS=`date "+%Y-%m-%d-%H:%M"`
 SUBJECT2="BQ Import finished ${TS}"
-BODY="${SUBJECT1} ${SUBJECT2} URL https://bigquery.cloud.google.com/table/eminent-torch-384"
+BODY="${SUBJECT1} ${SUBJECT2} URL https://bigquery.cloud.google.com/table/"
 echo ${BODY}
-#echo ${BODY}| mail -s ${SUBJECT2} ${TO_ADDRESS} -- -r ${FROM_ADDRESS}
+mail -s ${SUBJECT2} ${TO_ADDRESS} -- -r ${FROM_ADDRESS}
