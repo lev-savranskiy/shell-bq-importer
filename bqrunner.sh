@@ -1,49 +1,58 @@
-#!/bin/bash
-FOLDER="/mnt/bqfiles"
-FOLDERLOGS="/home/ubuntu/logs2"
-TO_ADDRESS="admin@example.com"
-BQTABLE=${1}
-LIMIT=${2}
+#!/bin/sh
+FOLDER=${1}
+DATASET=${2}
+SCHEMA=${3}
+OFFSET=${4}
+FOLDERLOGS="/home/ubuntu/logs"
+TO_ADDRESS="lev.savranskiy@example.com"
 FROM_ADDRESS="sender"
-SUBJECT1="BQ Import started"
-SUBJECT2="BQ Import finished"
-BODY="BQ Import started. URL https://bigquery.cloud.google.com/table/eminent-torch-384:my_dataset.${BQTABLE}?tab=details"
 TS=`date "+%Y-%m-%d-%H:%M"`
+SUBJECT1="BQ Import started ${TS}"
+BQ_PROC_CNT=0
+LIMIT=50
+TIMEOUT=30
+
+if [ "$#" -ne 4 ]
+then
+  echo "Parameters expected: [FOLDER] [DATASET] [SCHEMA] [OFFSET]"
+  exit 1
+fi
+
+## create array woth filenames
+#cd ${FOLDER}
+declare -a FILENAMES=( "${FOLDER}"/* )
+LENGTH=${#FILENAMES[@]}
+
+#echo "LENGTH ${LENGTH}"
+#exit
 #######################################
 
-if [ "$#" -ne 2 ]
-then
-  echo "2 parameters  expected [mastertable] [limit]"
-  exit 1
-fi
-if [ ${BQTABLE} = "master_table" ]; then
-  echo "You cant use name 'master_table'"
-  exit 1
-fi
-
-logpath="${FOLDERLOGS}/create-${TS}-${BQTABLE}.log"
-
-echo "Creating table ${BQTABLE}..."
-
-bq mk --table --description master_table_from_CLI eminent-torch-384:my_dataset.${BQTABLE} /home/ubuntu/schemes/schema_exported_fixed.json >> ${logpath}
-
+rm -rf ${FOLDERLOGS}/*.log
+echo "Folder ${FOLDERLOGS} cleared"
 echo ${SUBJECT1}
-
-FILENAMES=`ls $FOLDER`
-
-i=0; while [ $i -lt $LIMIT ]; do
-    START=`expr $i \* $LIMIT`
-    END=`expr $START + $LIMIT - 1`
-    echo $START "-" $END;
-    cmd=`sudo bash /home/ubuntu/bqimportrange.sh ${BQTABLE} ${START} ${END}`
-    #bq has limit of 50 load at once
-    #sleep to let files proceed
-    sleep 10
-    echo '--------';
-    i=$(($i + 1))
+i=0;
+while [ $i -lt $LENGTH ]
+do
+    date "+%m-%d-%Y %H:%M:%S"
+    echo "i: ${i} "
+    BQ_PROC_CNT=$(ps aux | grep 'bq load' | wc -l)
+    echo "BQ_PROC_CNT: ${BQ_PROC_CNT} "
+    if [ ${BQ_PROC_CNT} -ge ${LIMIT} ] ;
+    then
+        echo "sleeping for ${TIMEOUT} sec..."
+        sleep ${TIMEOUT}
+    else
+        FILEPATH=${FILENAMES[$i]}
+        # get filename from path
+        FILE="${FILEPATH##*/}"
+        echo "Importing ${FILE}"
+        sudo bash /home/ubuntu/bqimportone.sh ${FOLDER} ${FILE} ${DATASET} ${SCHEMA}
+        i=$(($i + 1))
+    fi
 done
 
-
-echo ${SUBJECT2}
-echo ${BODY}| mail -s ${SUBJECT2} ${TO_ADDRESS} -- -r ${FROM_ADDRESS}
-
+TS=`date "+%Y-%m-%d-%H:%M"`
+SUBJECT2="BQ Import finished ${TS}"
+BODY="${SUBJECT1} ${SUBJECT2} URL https://bigquery.cloud.google.com/table/eminent-torch-384"
+echo ${BODY}
+#echo ${BODY}| mail -s ${SUBJECT2} ${TO_ADDRESS} -- -r ${FROM_ADDRESS}
