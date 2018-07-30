@@ -1,24 +1,47 @@
 #!/bin/sh
-FOLDER="/mnt/bqfiles"
-FOLDERLOGS="/home/ubuntu/logs2"
-BQTABLE=${1}
-START=${2}
-END=${3}
+FOLDER=${1}
+FOLDERLOGS="/home/ubuntu/logs"
+TO_ADDRESS="lev.savranskiy@thebridgecorp.com"
+FROM_ADDRESS="sender"
 TS=`date "+%Y-%m-%d-%H:%M"`
+SUBJECT1="BQ Import started ${TS}"
+FILE=${2}
+DATASET=${3}
+SCHEMA=${4}
 
-#######################################
-if [ ${BQTABLE} = "master_table" ]; then
-  echo "You cant use name 'master_table'"
+if [ "$#" -ne 4 ]
+then
+  echo "Parameters expected: [FOLDER] [NAME] [DATASET] [SCHEMA]"
   exit 1
 fi
+#######################################
+logpath="${FOLDERLOGS}/import-${FILE}.log"
+echo 'started ' >> ${logpath}
+date "+%m-%d-%Y %H:%M:%S" >> ${logpath}
 
-for FILE in ${FOLDER}/*.csv
-do
-    parts=(${FILE//-/ })
-    ID=$((10#${parts[1]} + 0))
-    if [ "$ID" -ge "$START" -a "$ID" -le "$END" ];
-        then
-        echo "$FILE" >> ${logpath}
-        bq load -F "|" --noreplace --source_format=CSV --skip_leading_rows=1 --max_bad_records=100000 my_dataset.${BQTABLE} ${FILE} &
-    fi
-done
+#table name cant contain - and .
+TABLE_NAME=${FILE//[-.]/_}
+
+#if [ ${DATASET} = "bridge_dataset_temp" ]
+#then
+#TABLE_NAME=${TABLE_NAME//[.csv]/}
+#fi
+
+
+echo "${DATASET}.${TABLE_NAME}"
+
+bq mk --table --description table_from_CLI eminent-torch-384:${DATASET}.${TABLE_NAME} ${SCHEMA} >> ${logpath}
+
+
+if [ ${DATASET} = "bridge_dataset_temp" ]
+then
+    #master is pipe delimited, with header
+    bq load -F "|" --replace --source_format=CSV --max_bad_records=100000 --skip_leading_rows=1 ${DATASET}.${TABLE_NAME} ${FOLDER}/${FILE} &
+else
+    #email and postal are comma delimited, no header
+    bq load --replace --max_bad_records=100000 ${DATASET}.${TABLE_NAME} ${FOLDER}/${FILE} &
+fi
+
+
+echo 'done ' >> ${logpath}
+date "+%m-%d-%Y %H:%M:%S" >> ${logpath}
