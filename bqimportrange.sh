@@ -1,7 +1,7 @@
 #!/bin/sh
 FOLDER=${1}
 FOLDERLOGS="/home/ubuntu/logs"
-TO_ADDRESS="lev.savranskiy@thebridgecorp.com"
+TO_ADDRESS="lev.savranskiy@example.com"
 FROM_ADDRESS="sender"
 TS=`date "+%Y-%m-%d-%H:%M"`
 SUBJECT1="BQ Import started ${TS}"
