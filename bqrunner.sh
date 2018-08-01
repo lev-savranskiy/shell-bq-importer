@@ -2,24 +2,26 @@
 FOLDER=${1}
 DATASET=${2}
 SCHEMA=${3}
-OFFSET=${4}
+PROJECT="eminent-torch-384"
 FOLDERLOGS="/home/ubuntu/logs"
-TO_ADDRESS="lev.savranskiy@example.com"
-FROM_ADDRESS="sender"
-TS=`date "+%Y-%m-%d-%H:%M"`
-SUBJECT1="BQ Import started ${TS}"
 BQ_PROC_CNT=0
+# gsutil allows up to 50 files in parallel
 LIMIT=50
 TIMEOUT=30
 
-if [ "$#" -ne 4 ]
+if [ "$#" -ne 3 ]
 then
-  echo "Parameters expected: [FOLDER] [DATASET] [SCHEMA] [OFFSET]"
+  echo "Parameters expected: [FOLDER] [DATASET] [SCHEMA]"
   exit 1
 fi
 
-## create array woth filenames
-#cd ${FOLDER}
+if [ ${DATASET} = "my_prod_dataset" ]; then
+  echo "You cant use 'my_prod_dataset'"
+  exit 1
+fi
+
+
+# create array with filenames
 declare -a FILENAMES=( "${FOLDER}"/* )
 LENGTH=${#FILENAMES[@]}
 
@@ -29,30 +31,44 @@ LENGTH=${#FILENAMES[@]}
 
 rm -rf ${FOLDERLOGS}/*.log
 echo "Folder ${FOLDERLOGS} cleared"
-echo ${SUBJECT1}
+
 i=0;
-while [ $i -lt $LENGTH ]
+while [ ${i} -lt ${LENGTH} ]
 do
-    date "+%m-%d-%Y %H:%M:%S"
-    echo "i: ${i} "
+
+    # check load processes count
     BQ_PROC_CNT=$(ps aux | grep 'bq load' | wc -l)
+
+    echo ""
+    date "+%m-%d-%Y %H:%M:%S"
+    echo "File ${i} of ${LENGTH}"
     echo "BQ_PROC_CNT: ${BQ_PROC_CNT} "
+
     if [ ${BQ_PROC_CNT} -ge ${LIMIT} ] ;
     then
-        echo "sleeping for ${TIMEOUT} sec..."
+        echo "Sleeping for ${TIMEOUT} sec..."
         sleep ${TIMEOUT}
     else
         FILEPATH=${FILENAMES[$i]}
         # get filename from path
         FILE="${FILEPATH##*/}"
-        echo "Importing ${FILE}"
-        sudo bash /home/ubuntu/bqimportrange.sh ${FOLDER} ${FILE} ${DATASET} ${SCHEMA}
+        #table name cant contain - or .
+        TABLE_NAME=${FILE//[-.]/_}
+        echo "Importing ${FILE} ..."
+
+        #bq mk --table --description table_from_CLI ${PROJECT}:${DATASET}.${TABLE_NAME} ${SCHEMA}
+        #create table during  load
+        # https://cloud.google.com/bigquery/docs/loading-data-cloud-storage-csv#bigquery-import-gcs-file-cli
+
+        if [ ${DATASET} = "my_dataset_temp" ]
+        then
+            #master is pipe delimited, with a header
+            bq load -F "|" --replace --source_format=CSV --max_bad_records=10000 --skip_leading_rows=1 ${DATASET}.${TABLE_NAME} ${FOLDER}/${FILE} ${SCHEMA} &
+        else
+            #email and postal are comma delimited, no header
+            bq load --replace --max_bad_records=10000 ${DATASET}.${TABLE_NAME} ${FOLDER}/${FILE} ${SCHEMA}&
+        fi
+
         i=$(($i + 1))
     fi
 done
-
-TS=`date "+%Y-%m-%d-%H:%M"`
-SUBJECT2="BQ Import finished ${TS}"
-BODY="${SUBJECT1} ${SUBJECT2} URL https://bigquery.cloud.google.com/table/"
-echo ${BODY}
-mail -s ${SUBJECT2} ${TO_ADDRESS} -- -r ${FROM_ADDRESS}
