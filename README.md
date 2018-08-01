@@ -4,4 +4,4 @@ Shell BigQuery importer
 
 bqrunner creates bq table / runs multiple processes
 
-`bqrunner.sh master_table 50`
+`bqrunner.sh /path/to/csv/files my-dataset /path/to/schema.jon`
